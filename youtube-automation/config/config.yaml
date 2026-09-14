@@ -21,6 +21,12 @@ issue_selection:
   min_mentions: 2             # 최소 언급 횟수
   stopwords_file: "config/stopwords_ko.txt"
 
+  # 평소 트래킹하는 이슈/키워드를 여기 적어두면, 언급 횟수가 같거나 적어도
+  # 우선순위를 높여 선정합니다. (예: 특정 상임위, 법안명, 정치인 이름 등)
+  # 부분 일치도 허용합니다 (예: "탄핵" 하나만 넣어도 "탄핵소추안" 기사에 매칭).
+  watch_keywords: []
+  watch_keyword_boost: 3      # watch_keywords에 매칭되면 언급 횟수에 곱해줄 가중치
+
 # --- 소스 사용 방식 ---
 # reupload_raw_clips: true 로 바꾸면 "원본 클립 그대로" 모드지만
 # 저작권 침해 리스크가 매우 높으므로 기본값은 false(내레이션+자막 자체 제작) 권장.

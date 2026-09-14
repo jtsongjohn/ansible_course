@@ -125,9 +125,9 @@ pip install -r requirements.txt
 cp .env.example .env
 # .env 에 ANTHROPIC_API_KEY 입력 (https://console.anthropic.com/)
 
-# 시스템 패키지 필요: ffmpeg, imagemagick, 한글 폰트(nanum 등)
-#   Ubuntu/Debian: sudo apt install ffmpeg imagemagick fonts-nanum
-#   macOS:         brew install ffmpeg imagemagick && brew install --cask font-nanum-gothic
+# 시스템 패키지 필요: ffmpeg, 한글 폰트(nanum)
+#   Ubuntu/Debian: sudo apt install ffmpeg fonts-nanum
+#   macOS:         brew install ffmpeg && brew install --cask font-nanum-gothic
 
 python -m src.pipeline.main
 ```
@@ -138,9 +138,25 @@ python -m src.pipeline.main
 - `captions.srt` — 자막 파일
 - `short.mp4` — 최종 쇼츠 영상
 
-> ImageMagick이 "not authorized" 오류를 낸다면 `/etc/ImageMagick-6/policy.xml`
-> 에서 `pattern="@*"` 정책을 `read|write`로 완화해야 합니다. Ansible로
-> 배포하면 이 설정이 자동 적용됩니다.
+> moviepy 2.x는 자막을 ImageMagick 없이 Pillow로 직접 그립니다. 대신 한글이
+> 제대로 나오려면 실제 한글 폰트 "파일"이 있어야 합니다 — `fonts-nanum`을
+> 설치하면 `video_assembler.py`가 `/usr/share/fonts/truetype/nanum/` 등의
+> 흔한 경로에서 자동으로 찾습니다. 못 찾으면 어떤 경로를 찾아봤는지 에러
+> 메시지에 나오니, `config.yaml`의 `video.font`에 폰트 파일 절대경로를
+> 직접 넣어줘도 됩니다.
+
+### 테스트
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -v
+```
+
+네트워크나 `ANTHROPIC_API_KEY` 없이도 실행되는 순수 로직(이슈 선정 키워드
+추출/가중치, 자막 타이밍, 그라디언트 배경 생성 등) 테스트입니다. RSS 수집,
+TTS 음성 합성, Claude 대본 생성은 외부 API 호출이 필요해 이 테스트에는
+포함되어 있지 않습니다 — 실제 키를 넣고 `python -m src.pipeline.main`으로
+직접 확인하세요.
 
 ---
 
@@ -182,9 +198,10 @@ ls /opt/youtube-automation/output/
 
 ## 5. 다음 단계로 확장하고 싶다면
 
-- **관심 키워드 가중치**: `issue_selector.py`에 화이트리스트 키워드
-  가중치를 추가해, 사용자님이 평소 트래킹하는 이슈가 우선 선정되도록
-  튜닝할 수 있습니다.
+- **관심 키워드 가중치** (구현됨): `config.yaml`의 `issue_selection.watch_keywords`에
+  평소 트래킹하는 키워드(상임위명, 법안명, 정치인 이름 등)를 적어두면,
+  `watch_keyword_boost` 배수만큼 우선순위가 올라가 이슈 선정에 반영됩니다.
+  부분 일치도 허용되어 "탄핵" 하나만 넣어도 "탄핵소추안" 관련 기사에 매칭됩니다.
 - **팩트체크 2차 검증**: 대본 생성 후 별도 LLM 호출로 "이 문장이
   기사 출처로 뒷받침되는가"를 재검증하는 단계를 추가하면 편향/오류
   리스크를 더 낮출 수 있습니다.

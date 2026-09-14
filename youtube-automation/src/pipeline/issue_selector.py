@@ -98,15 +98,36 @@ def _entry_datetime(entry) -> datetime | None:
     return None
 
 
+def _matches_watch_keyword(token: str, watch_keywords: list[str]) -> bool:
+    return any(w and (w in token or token in w) for w in watch_keywords)
+
+
 def extract_keywords(
-    articles: list[Article], stopwords: set[str], top_n: int
+    articles: list[Article],
+    stopwords: set[str],
+    top_n: int,
+    watch_keywords: list[str] | None = None,
+    watch_keyword_boost: float = 1,
 ) -> list[tuple[str, int]]:
+    """키워드 빈도를 세고, watch_keywords에 매칭되는 키워드는 가중치를 곱해
+    우선순위를 높인다. 반환값의 int는 원래 언급 횟수(가중치 적용 전)이며,
+    정렬만 가중치 기준으로 한다."""
     counter: Counter[str] = Counter()
     for art in articles:
         text = f"{art.title} {art.summary}"
         tokens = [t for t in _TOKEN_RE.findall(text) if t not in stopwords]
         counter.update(set(tokens))  # 기사당 1회만 카운트(과대표집 방지)
-    return counter.most_common(top_n)
+
+    watch_keywords = watch_keywords or []
+
+    def score(item: tuple[str, int]) -> float:
+        keyword, count = item
+        if _matches_watch_keyword(keyword, watch_keywords):
+            return count * watch_keyword_boost
+        return count
+
+    ranked = sorted(counter.items(), key=score, reverse=True)
+    return ranked[:top_n]
 
 
 def group_issues(
@@ -146,7 +167,13 @@ def select_issues(cfg: dict) -> list[Issue]:
         print("[issue_selector] 최근 기사가 없습니다. 피드 URL/네트워크를 확인하세요.")
         return []
 
-    keywords = extract_keywords(articles, stopwords, ic["top_n_keywords"])
+    keywords = extract_keywords(
+        articles,
+        stopwords,
+        ic["top_n_keywords"],
+        watch_keywords=ic.get("watch_keywords") or [],
+        watch_keyword_boost=ic.get("watch_keyword_boost", 1),
+    )
     issues = group_issues(articles, keywords, ic["top_n_issues"], ic["min_mentions"])
     return issues
 
