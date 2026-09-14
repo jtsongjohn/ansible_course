@@ -1,0 +1,98 @@
+---
+- name: Install system packages
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-pip
+      - ffmpeg
+      - imagemagick
+      - fonts-nanum
+      - rsync
+    state: present
+    update_cache: true
+
+- name: Relax ImageMagick policy for text/caption rendering (moviepy 요구사항)
+  ansible.builtin.replace:
+    path: /etc/ImageMagick-6/policy.xml
+    regexp: '<policy domain="path" rights="none" pattern="@\*"\s*/>'
+    replace: '<policy domain="path" rights="read|write" pattern="@*" />'
+  failed_when: false  # 배포판마다 policy.xml 경로/내용이 다를 수 있어 실패해도 계속 진행
+
+- name: Create dedicated service user
+  ansible.builtin.user:
+    name: "{{ app_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: true
+
+- name: Ensure app directory exists
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0750"
+
+- name: Sync application code to server
+  ansible.posix.synchronize:
+    src: "{{ repo_local_path }}/"
+    dest: "{{ app_dir }}/"
+    delete: false
+    rsync_opts:
+      - "--exclude=output"
+      - "--exclude=.git"
+      - "--exclude=venv"
+      - "--exclude=ansible/secrets.yml"
+
+- name: Fix ownership after sync
+  ansible.builtin.file:
+    path: "{{ app_dir }}"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    recurse: true
+
+- name: Create Python virtualenv and install dependencies
+  ansible.builtin.pip:
+    requirements: "{{ app_dir }}/requirements.txt"
+    virtualenv: "{{ app_dir }}/venv"
+    virtualenv_command: python3 -m venv
+
+- name: Deploy .env file with secrets
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ app_dir }}/.env"
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0600"
+
+- name: Ensure output directory exists
+  ansible.builtin.file:
+    path: "{{ app_dir }}/output"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_user }}"
+    mode: "0750"
+
+- name: Deploy systemd service (oneshot pipeline run)
+  ansible.builtin.template:
+    src: pipeline.service.j2
+    dest: /etc/systemd/system/youtube-pipeline.service
+    mode: "0644"
+  notify: reload systemd
+
+- name: Deploy systemd timer (daily schedule)
+  ansible.builtin.template:
+    src: pipeline.timer.j2
+    dest: /etc/systemd/system/youtube-pipeline.timer
+    mode: "0644"
+  notify: reload systemd
+
+- name: Flush handlers so systemd sees new unit files
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the timer
+  ansible.builtin.systemd:
+    name: youtube-pipeline.timer
+    enabled: true
+    state: started

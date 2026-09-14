@@ -1,0 +1,56 @@
+# ============================================================
+# YouTube 정치 콘텐츠 자동화 파이프라인 설정
+# ============================================================
+
+# --- 이슈 소스: RSS 피드 (공개된 뉴스 제목/요약만 수집, 본문 전체 저장 X) ---
+rss_feeds:
+  - name: "연합뉴스 정치"
+    url: "https://www.yna.co.kr/rss/politics.xml"
+  - name: "한겨레 정치"
+    url: "https://www.hani.co.kr/rss/politics/"
+  - name: "국회방송(NATV) 보도"
+    url: "https://www.natv.go.kr/rss/news.xml"   # 접속 불가 시 국회 공식 채널 URL로 교체
+  - name: "네이버 뉴스 정치(검색 RSS)"
+    url: "https://news.google.com/rss/search?q=%EA%B5%AD%ED%9A%8C+%EC%A0%95%EC%B9%98&hl=ko&gl=KR&ceid=KR:ko"
+
+# --- 이슈 선정 파라미터 ---
+issue_selection:
+  lookback_hours: 24          # 최근 N시간 내 기사만 집계
+  top_n_keywords: 10          # 상위 키워드 몇 개까지 뽑을지
+  top_n_issues: 3             # 최종 이슈(=콘텐츠 후보) 몇 개 뽑을지
+  min_mentions: 2             # 최소 언급 횟수
+  stopwords_file: "config/stopwords_ko.txt"
+
+# --- 소스 사용 방식 ---
+# reupload_raw_clips: true 로 바꾸면 "원본 클립 그대로" 모드지만
+# 저작권 침해 리스크가 매우 높으므로 기본값은 false(내레이션+자막 자체 제작) 권장.
+# README.md의 "저작권/법적 리스크" 섹션을 반드시 읽어보세요.
+content_mode:
+  reupload_raw_clips: false
+  narration_and_captions: true
+
+# --- 대본 생성 (Claude API 사용) ---
+script_generation:
+  model: "claude-sonnet-5"
+  target_seconds: 50          # 쇼츠 목표 길이(초)
+  max_words: 160
+  tone: "객관적 사실 전달 + 간결한 해설, 특정 정당·정치인에 대한 편향적 단정 표현 지양"
+  require_source_citation: true
+
+# --- TTS(음성 합성) ---
+tts:
+  engine: "edge-tts"          # 무료, 별도 API 키 불필요
+  voice: "ko-KR-InJoonNeural" # 다른 옵션: ko-KR-SunHiNeural 등
+  rate: "+0%"
+
+# --- 영상 조립 ---
+video:
+  resolution: [1080, 1920]    # Shorts 세로 비율
+  fps: 30
+  background_mode: "gradient" # gradient | solid | image | broll(직접 소유한 브롤만 권장)
+  background_color_from: "#0b1e3d"
+  background_color_to: "#1c3f6e"
+  font: "NanumGothicBold"
+  caption_max_chars_per_line: 18
+
+output_dir: "output"

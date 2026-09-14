@@ -1,0 +1,8 @@
+anthropic>=0.40.0
+feedparser>=6.0.11
+requests>=2.32.0
+beautifulsoup4>=4.12.3
+pyyaml>=6.0.2
+edge-tts>=6.1.19
+moviepy>=1.0.3
+python-dotenv>=1.0.1

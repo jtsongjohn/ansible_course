@@ -1,0 +1,9 @@
+[Unit]
+Description=Run YouTube politics shorts pipeline daily
+
+[Timer]
+OnCalendar=*-*-* {{ tts_hour }}:{{ tts_minute }}:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

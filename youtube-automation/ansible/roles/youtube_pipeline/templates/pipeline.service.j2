@@ -1,0 +1,12 @@
+[Unit]
+Description=YouTube politics shorts automation pipeline (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ app_user }}
+Group={{ app_user }}
+WorkingDirectory={{ app_dir }}
+ExecStart={{ app_dir }}/venv/bin/python -m src.pipeline.main
+TimeoutStartSec=1800
