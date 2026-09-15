@@ -17,8 +17,18 @@
     app_dir: /opt/youtube-automation
     app_user: ytauto
     repo_local_path: "{{ playbook_dir }}/.."   # 로컬에서 rsync로 배포
-    tts_hour: "7"     # 매일 이 시각(서버 로컬 타임존)에 파이프라인 실행
-    tts_minute: "30"
+
+    # 채널별로 systemd service+timer를 따로 만듭니다 (youtube-pipeline-<name>.*).
+    # config/channels/<name>.yaml 이 실제 논조/설정을 담고 있습니다.
+    # 같은 시각에 몰리면 리소스 경합/API 레이트리밋이 생길 수 있어 시간을 살짝 띄움.
+    channels:
+      - name: right
+        hour: "7"
+        minute: "0"
+      - name: left
+        hour: "7"
+        minute: "20"
+
     anthropic_api_key: ""      # secrets.yml(ansible-vault)로 덮어쓰세요
     assembly_open_api_key: ""
 

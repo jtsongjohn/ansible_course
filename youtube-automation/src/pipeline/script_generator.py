@@ -4,10 +4,11 @@
 enrich_issue() 로 만들어진 이슈 컨텍스트(제목/요약/출처)를 바탕으로
 Claude API를 호출해 쇼츠(~50초) 나레이션 대본을 생성한다.
 
-원칙:
-- 기사 원문을 그대로 베끼지 않고, 사실관계를 요약/재구성한다.
-- 특정 정당/정치인에 대한 단정적 비난·편向 표현을 피하고 출처를 명시한다.
-- 출력은 JSON으로 받아 파싱하기 쉽게 한다.
+채널마다 다른 논조(stance_prompt, config/channels/*.yaml)를 적용할 수 있지만,
+아래 핵심 원칙(_CORE_SYSTEM_PROMPT)은 어떤 채널이든 예외 없이 강제된다:
+사실 날조 금지, 인신공격·명예훼손 금지, 출처 명시. "채널 논조"는 같은 사실을
+어떤 관점으로 해석/강조하느냐의 문제이지, 없는 사실을 만들어도 된다는 뜻이
+아니다.
 """
 from __future__ import annotations
 
@@ -18,16 +19,17 @@ from anthropic import Anthropic
 
 from .config import require_env
 
-_SYSTEM_PROMPT = """\
+_CORE_SYSTEM_PROMPT = """\
 당신은 한국 정치 뉴스를 다루는 유튜브 쇼츠 채널의 대본 작가입니다.
-아래 원칙을 반드시 지키세요.
+아래 원칙은 채널 성향과 무관하게 절대 예외 없이 지켜야 합니다.
 
-1. 제공된 기사 제목/요약만을 근거로 사실관계를 서술하고, 근거 없는 추측이나
-   자극적인 허위 주장을 하지 않습니다.
-2. 특정 정당이나 정치인을 일방적으로 비난/옹호하지 말고, 쟁점과 팩트 중심으로
-   균형 있게 서술합니다. 의견을 말할 땐 "~라는 평가가 나온다"처럼 출처를 붙입니다.
-3. 영상 나레이션 대본이므로 문어체가 아닌 짧고 리듬감 있는 구어체 문장을 씁니다.
-4. 반드시 아래 JSON 스키마로만 응답하세요. 다른 텍스트를 덧붙이지 마세요.
+1. 제공된 기사 제목/요약에 없는 사실이나 수치를 지어내지 않습니다. 근거 없는
+   추측이나 자극적인 허위 주장을 하지 않습니다.
+2. 특정 개인을 향한 인신공격·명예훼손성 표현을 쓰지 않습니다. 정책이나
+   결정에 대한 비판은 근거를 들어 해도 됩니다.
+3. 의견을 말할 땐 "~라는 평가가 나온다"처럼 근거/출처를 붙입니다.
+4. 영상 나레이션 대본이므로 문어체가 아닌 짧고 리듬감 있는 구어체 문장을 씁니다.
+5. 반드시 아래 JSON 스키마로만 응답하세요. 다른 텍스트를 덧붙이지 마세요.
 
 {
   "title": "유튜브 쇼츠 제목 (25자 이내, 후킹되는 문구)",
@@ -39,6 +41,15 @@ _SYSTEM_PROMPT = """\
   "disclaimer": "영상 하단에 표기할 출처/고지 문구 1문장"
 }
 """
+
+_DEFAULT_BALANCE_PROMPT = """
+채널별 논조가 따로 지정되지 않았습니다. 특정 정당이나 정치인을 일방적으로
+비난/옹호하지 말고, 쟁점과 팩트 중심으로 균형 있게 서술하세요.
+"""
+
+
+def _build_system_prompt(stance_prompt: str | None) -> str:
+    return _CORE_SYSTEM_PROMPT + "\n" + (stance_prompt or _DEFAULT_BALANCE_PROMPT)
 
 
 @dataclass
@@ -94,6 +105,7 @@ def generate_script(
     model: str = "claude-sonnet-5",
     target_seconds: int = 50,
     max_words: int = 160,
+    stance_prompt: str | None = None,
 ) -> ShortsScript:
     client = Anthropic(api_key=require_env("ANTHROPIC_API_KEY"))
     user_prompt = _build_user_prompt(issue, target_seconds, max_words)
@@ -101,7 +113,7 @@ def generate_script(
     response = client.messages.create(
         model=model,
         max_tokens=1024,
-        system=_SYSTEM_PROMPT,
+        system=_build_system_prompt(stance_prompt),
         messages=[{"role": "user", "content": user_prompt}],
     )
     raw_text = "".join(
@@ -134,5 +146,6 @@ if __name__ == "__main__":
             model=sg_cfg["model"],
             target_seconds=sg_cfg["target_seconds"],
             max_words=sg_cfg["max_words"],
+            stance_prompt=sg_cfg.get("stance_prompt"),
         )
         print(script)

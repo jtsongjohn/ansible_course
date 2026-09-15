@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 파이프라인 실행 스크립트 (수동 실행 / cron / systemd timer 공용)
+# 사용법: ./run_pipeline.sh [--channel right|left]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,4 +10,4 @@ if [ -d "venv" ]; then
   source venv/bin/activate
 fi
 
-python -m src.pipeline.main
+python -m src.pipeline.main "$@"

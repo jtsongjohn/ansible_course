@@ -114,7 +114,65 @@ youtube-automation/
 
 ---
 
-## 3. 로컬에서 실행하기
+## 3. 멀티 채널(예: 우파/좌파) 운영하기
+
+같은 파이프라인으로 **서로 다른 논조의 채널을 여러 개** 운영할 수 있도록
+"채널 프로필" 구조를 지원합니다.
+
+```
+config/
+├── config.yaml              # 공통 기본값 (RSS, TTS, 영상 해상도 등)
+└── channels/
+    ├── right.yaml           # 우파 채널 오버레이
+    └── left.yaml            # 좌파 채널 오버레이
+```
+
+`config/channels/<이름>.yaml`이 `config.yaml` 위에 덮어씌워집니다. 채널별로
+바꿀 수 있는 것:
+- `channel_name`, `output_dir` (채널마다 결과물이 `output/right/`,
+  `output/left/`처럼 분리 저장됨)
+- `issue_selection.watch_keywords` — 채널마다 우선적으로 다룰 이슈
+- `video.background_color_from/to` — 시각적으로도 구분되도록 배경색 차등
+- `script_generation.stance_prompt` — **이 채널이 같은 사실을 어떤 관점/논조로
+  풀어낼지**를 지정하는 문단
+
+실행:
+```bash
+python -m src.pipeline.main --channel right
+python -m src.pipeline.main --channel left
+python -m src.pipeline.main               # channel 생략 시 config.yaml만 사용(중립 톤)
+```
+
+### 지켜지는 공통 원칙 (채널 성향과 무관하게 예외 없음)
+
+`script_generator.py`의 핵심 시스템 프롬프트는 `stance_prompt`와 무관하게
+항상 강제됩니다:
+1. **기사에 없는 사실·수치를 지어내지 않는다** — 논조는 "어떤 사실을
+   강조/해석하느냐"의 문제이지, "없는 사실을 만들어도 된다"는 뜻이 아닙니다.
+2. **특정 개인에 대한 인신공격·명예훼손성 표현 금지** (정책 비판은 허용)
+3. **출처 명시**
+
+즉 `stance_prompt`로 조정되는 건 "관점/프레이밍"이지 "사실 여부"가 아닙니다.
+같은 이슈를 다루더라도 우파 채널은 시장경제·안보 관점, 좌파 채널은
+형평성·노동권 관점에서 풀어내는 식입니다.
+
+### 두 채널을 운영할 때 실무적으로 고려할 점
+
+- **시청자에게는 서로 완전히 별개 채널로 보입니다** — 유튜브는 "정보" 탭에
+  스스로 적지 않는 한 운영자를 공개하지 않습니다. 다만 TTS 목소리나 배경
+  스타일이 똑같으면 눈썰미 있는 시청자가 눈치챌 수 있어, `channels/*.yaml`에
+  `tts.voice`(남/녀 목소리)와 `video.background_color_*`(적/청 계열)를
+  이미 다르게 세팅해뒀습니다.
+- 두 채널이 서로를 언급/인용하거나 교차홍보하면 연결고리가 생기니 피하세요.
+- 유튜브 정책상 한 사람이 여러 채널을 운영하는 것 자체는 문제가 아닙니다.
+  문제가 되는 건 가짜 계정으로 서로 품앗이하거나 조회수·댓글을 조작하는
+  "기만 행위(coordinated inauthentic behavior)"이니, 그런 행위만 안 하면 됩니다.
+- 의도적으로 한쪽 관점만 강조하는 콘텐츠이므로, **업로드 전 사람 검수가
+  더욱 중요**합니다 (6번 체크리스트 참고).
+
+---
+
+## 4. 로컬에서 실행하기
 
 ```bash
 cd youtube-automation
@@ -129,10 +187,10 @@ cp .env.example .env
 #   Ubuntu/Debian: sudo apt install ffmpeg fonts-nanum
 #   macOS:         brew install ffmpeg && brew install --cask font-nanum-gothic
 
-python -m src.pipeline.main
+python -m src.pipeline.main            # 또는 --channel right / --channel left
 ```
 
-결과물은 `output/YYYYMMDD/<이슈-슬러그>/` 아래에 생성됩니다:
+결과물은 `output/[<채널>/]YYYYMMDD/<이슈-슬러그>/` 아래에 생성됩니다:
 - `script.json` — 생성된 대본 전문 + 참고한 기사 출처
 - `narration.mp3` — TTS 음성
 - `captions.srt` — 자막 파일
@@ -160,10 +218,10 @@ TTS 음성 합성, Claude 대본 생성은 외부 API 호출이 필요해 이 �
 
 ---
 
-## 4. 서버에 자동 배포하기 (Ansible)
+## 5. 서버에 자동 배포하기 (Ansible)
 
 이 저장소가 원래 Ansible 강의 자료이니, 배운 내용을 그대로 활용해 매일
-정해진 시각에 자동 실행되도록 배포할 수 있습니다.
+정해진 시각에 채널별로 자동 실행되도록 배포할 수 있습니다.
 
 ```bash
 cd youtube-automation/ansible
@@ -179,24 +237,29 @@ ansible-playbook -i inventory.ini deploy.yml --ask-vault-pass
 
 배포되는 것:
 - Python venv + 의존성 설치
-- ffmpeg / ImageMagick / 한글 폰트 설치, ImageMagick 정책 자동 완화
-- `/etc/systemd/system/youtube-pipeline.service` (1회 실행 유닛)
-- `/etc/systemd/system/youtube-pipeline.timer` (매일 `tts_hour:tts_minute`에 자동 실행,
-  `deploy.yml`의 vars에서 조정)
-- 전용 시스템 사용자(`ytauto`)로 격리 실행
+- ffmpeg / 한글 폰트(fonts-nanum) 설치
+- `deploy.yml`의 `channels` 목록(기본: right, left)에 있는 채널마다
+  `/etc/systemd/system/youtube-pipeline-<채널>.service` +
+  `youtube-pipeline-<채널>.timer` 를 따로 생성 (스케줄도 채널별로 다르게
+  설정 가능, 기본은 07:00/07:20으로 살짝 띄워둠)
+- 전용 시스템 사용자(`ytauto`)로 격리 실행, 결과물은 채널별로
+  `/opt/youtube-automation/output/right/`, `.../output/left/`에 분리 저장
 
-서버에 접속해 수동으로 한 번 실행/확인하려면:
+채널을 추가/제거하려면 `deploy.yml`의 `channels` 리스트를 수정하고,
+`config/channels/<이름>.yaml`을 새로 만든 뒤 다시 플레이북을 실행하면 됩니다.
+
+서버에 접속해 특정 채널만 수동으로 한 번 실행/확인하려면:
 ```bash
-sudo systemctl start youtube-pipeline.service
-sudo journalctl -u youtube-pipeline.service -f
-ls /opt/youtube-automation/output/
+sudo systemctl start youtube-pipeline-right.service
+sudo journalctl -u youtube-pipeline-right.service -f
+ls /opt/youtube-automation/output/right/
 ```
 생성된 `output/` 결과물을 로컬로 내려받아(`scp`/`rsync`) 검수 후 직접
 유튜브 스튜디오에 업로드하세요.
 
 ---
 
-## 5. 다음 단계로 확장하고 싶다면
+## 6. 다음 단계로 확장하고 싶다면
 
 - **관심 키워드 가중치** (구현됨): `config.yaml`의 `issue_selection.watch_keywords`에
   평소 트래킹하는 키워드(상임위명, 법안명, 정치인 이름 등)를 적어두면,
@@ -215,10 +278,12 @@ ls /opt/youtube-automation/output/
 
 ---
 
-## 6. 업로드 전 체크리스트 (사람이 직접 확인)
+## 7. 업로드 전 체크리스트 (사람이 직접 확인)
 
-- [ ] 대본의 사실관계가 실제 기사 내용과 일치하는가
-- [ ] 특정 정당/정치인에 대한 일방적 편향 표현이 없는가
+- [ ] 대본의 사실관계가 실제 기사 내용과 일치하는가 (지어낸 사실/수치는 없는가)
+- [ ] 채널 논조(`stance_prompt`)를 반영하더라도, 특정 **개인**에 대한
+      인신공격·명예훼손성 표현으로 넘어가지 않았는가
 - [ ] 출처(`script.json`의 `sources`)가 영상 설명란에 명시되었는가
 - [ ] 저작권 문제될 이미지/영상/음악이 섞이지 않았는가
 - [ ] 제목/썸네일이 낚시성·허위 정보가 아닌가
+- [ ] (멀티 채널 운영 시) 다른 채널을 언급/교차홍보하지 않았는가

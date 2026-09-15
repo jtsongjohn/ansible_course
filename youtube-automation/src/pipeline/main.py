@@ -6,10 +6,13 @@
 결과물(mp4 + 대본 json + srt)을 생성한다.
 
 실행:
-    python -m src.pipeline.main
+    python -m src.pipeline.main                  # 기본 config.yaml만 사용
+    python -m src.pipeline.main --channel right   # config/channels/right.yaml 오버레이
+    python -m src.pipeline.main --channel left    # config/channels/left.yaml 오버레이
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from datetime import datetime
@@ -29,8 +32,11 @@ def _slugify(text: str) -> str:
     return text[:40] or "issue"
 
 
-def run_pipeline() -> list[str]:
-    cfg = load_config()
+def run_pipeline(channel: str | None = None) -> list[str]:
+    cfg = load_config(channel=channel)
+    channel_name = cfg.get("channel_name", "기본 채널")
+    print(f"[main] 채널: {channel_name} (channel={cfg['channel']})")
+
     output_dir = Path(cfg["_output_dir"])
     run_date = datetime.now().strftime("%Y%m%d")
 
@@ -60,6 +66,7 @@ def run_pipeline() -> list[str]:
             model=sg_cfg["model"],
             target_seconds=sg_cfg["target_seconds"],
             max_words=sg_cfg["max_words"],
+            stance_prompt=sg_cfg.get("stance_prompt"),
         )
 
         slug = _slugify(issue.keyword)
@@ -70,6 +77,7 @@ def run_pipeline() -> list[str]:
         with open(script_path, "w", encoding="utf-8") as f:
             json.dump(
                 {
+                    "channel": cfg["channel"],
                     "issue": issue.keyword,
                     "title": script.title,
                     "hook": script.hook,
@@ -116,5 +124,16 @@ def run_pipeline() -> list[str]:
     return generated_paths
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="유튜브 정치 쇼츠 자동화 파이프라인")
+    parser.add_argument(
+        "--channel",
+        default=None,
+        help="config/channels/<channel>.yaml 오버레이 이름 (예: right, left). 생략 시 config.yaml만 사용.",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    run_pipeline()
+    args = _parse_args()
+    run_pipeline(channel=args.channel)

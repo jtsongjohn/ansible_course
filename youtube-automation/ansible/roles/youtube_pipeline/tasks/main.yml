@@ -68,25 +68,34 @@
     group: "{{ app_user }}"
     mode: "0750"
 
-- name: Deploy systemd service (oneshot pipeline run)
+- name: Deploy systemd service (oneshot pipeline run) per channel
   ansible.builtin.template:
     src: pipeline.service.j2
-    dest: /etc/systemd/system/youtube-pipeline.service
+    dest: "/etc/systemd/system/youtube-pipeline-{{ item.name }}.service"
     mode: "0644"
+  loop: "{{ channels }}"
+  loop_control:
+    label: "{{ item.name }}"
   notify: reload systemd
 
-- name: Deploy systemd timer (daily schedule)
+- name: Deploy systemd timer (daily schedule) per channel
   ansible.builtin.template:
     src: pipeline.timer.j2
-    dest: /etc/systemd/system/youtube-pipeline.timer
+    dest: "/etc/systemd/system/youtube-pipeline-{{ item.name }}.timer"
     mode: "0644"
+  loop: "{{ channels }}"
+  loop_control:
+    label: "{{ item.name }}"
   notify: reload systemd
 
 - name: Flush handlers so systemd sees new unit files
   ansible.builtin.meta: flush_handlers
 
-- name: Enable and start the timer
+- name: Enable and start each channel's timer
   ansible.builtin.systemd:
-    name: youtube-pipeline.timer
+    name: "youtube-pipeline-{{ item.name }}.timer"
     enabled: true
     state: started
+  loop: "{{ channels }}"
+  loop_control:
+    label: "{{ item.name }}"

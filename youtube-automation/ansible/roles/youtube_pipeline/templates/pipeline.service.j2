@@ -1,5 +1,5 @@
 [Unit]
-Description=YouTube politics shorts automation pipeline (oneshot)
+Description=YouTube "{{ item.name }}" channel shorts automation pipeline (oneshot)
 After=network-online.target
 Wants=network-online.target
 
@@ -8,5 +8,5 @@ Type=oneshot
 User={{ app_user }}
 Group={{ app_user }}
 WorkingDirectory={{ app_dir }}
-ExecStart={{ app_dir }}/venv/bin/python -m src.pipeline.main
+ExecStart={{ app_dir }}/venv/bin/python -m src.pipeline.main --channel {{ item.name }}
 TimeoutStartSec=1800
