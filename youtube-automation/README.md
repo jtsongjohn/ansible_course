@@ -91,11 +91,13 @@ youtube-automation/
 │   ├── script_generator.py # Claude API로 쇼츠 대본(JSON) 생성 — 출처 인용 강제
 │   ├── narration.py        # edge-tts로 음성 합성 + 단어별 타임스탬프 추출
 │   ├── captions.py         # 타임스탬프 기반 자막 큐/SRT 생성
-│   ├── video_assembler.py  # 그라디언트 배경 + 자막 + 음성 합성 → mp4
+│   ├── imaging.py          # 그라디언트 배경 + 한글 폰트 경로 해석 (video/thumbnail 공용)
+│   ├── video_assembler.py  # 자막 + 음성 합성 → mp4
+│   ├── thumbnail.py        # 제목 텍스트로 1280x720 썸네일 JPG 생성
 │   └── main.py             # 전체 파이프라인 오케스트레이션 (진입점)
 ├── scripts/run_pipeline.sh # 실행 스크립트 (cron/systemd 겸용)
 ├── ansible/                # 서버 배포용 플레이북/role
-└── output/                 # 결과물 (script.json, captions.srt, short.mp4)
+└── output/                 # 결과물 (script.json, captions.srt, short.mp4, thumbnail.jpg)
 ```
 
 ### 왜 이 구성인가
@@ -195,6 +197,7 @@ python -m src.pipeline.main            # 또는 --channel right / --channel left
 - `narration.mp3` — TTS 음성
 - `captions.srt` — 자막 파일
 - `short.mp4` — 최종 쇼츠 영상
+- `thumbnail.jpg` — 1280x720 썸네일 (영상과 같은 배경색/폰트로 자동 생성)
 
 > moviepy 2.x는 자막을 ImageMagick 없이 Pillow로 직접 그립니다. 대신 한글이
 > 제대로 나오려면 실제 한글 폰트 "파일"이 있어야 합니다 — `fonts-nanum`을

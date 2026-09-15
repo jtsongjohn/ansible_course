@@ -24,6 +24,7 @@ from .issue_selector import select_issues
 from .narration import synthesize
 from .script_generator import generate_script
 from .source_fetcher import enrich_issue
+from .thumbnail import generate_thumbnail
 from .video_assembler import assemble_video
 
 
@@ -116,6 +117,15 @@ def run_pipeline(channel: str | None = None) -> list[str]:
             out_path=str(video_path),
         )
         print(f"[main] 영상 생성 완료: {video_path}")
+
+        thumbnail_path = work_dir / "thumbnail.jpg"
+        generate_thumbnail(
+            title=script.title,
+            video_cfg=video_cfg,
+            out_path=str(thumbnail_path),
+            channel_name=cfg.get("channel_name"),
+        )
+        print(f"[main] 썸네일 생성 완료: {thumbnail_path}")
 
         generated_paths.append(str(video_path))
 

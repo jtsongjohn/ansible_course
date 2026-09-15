@@ -1,17 +1,17 @@
-"""video_assembler 의 순수 계산 로직(ffmpeg 렌더링 불필요) 테스트."""
+"""imaging.py (그라디언트/폰트 경로 해석) 순수 로직 테스트."""
 import pytest
 
-from src.pipeline.video_assembler import _hex_to_rgb, _make_gradient_array, resolve_font_path
+from src.pipeline.imaging import hex_to_rgb, make_gradient_array, resolve_font_path
 
 
 def test_hex_to_rgb():
-    assert _hex_to_rgb("#0b1e3d") == (11, 30, 61)
-    assert _hex_to_rgb("1c3f6e") == (28, 63, 110)
+    assert hex_to_rgb("#0b1e3d") == (11, 30, 61)
+    assert hex_to_rgb("1c3f6e") == (28, 63, 110)
 
 
 def test_make_gradient_array_shape_and_endpoints():
     width, height = 10, 20
-    arr = _make_gradient_array(width, height, "#000000", "#ffffff")
+    arr = make_gradient_array(width, height, "#000000", "#ffffff")
 
     assert arr.shape == (height, width, 3)
     # 맨 윗줄은 color_from(검정)에 가깝고, 맨 아랫줄은 color_to(흰색)에 가까워야 한다.
