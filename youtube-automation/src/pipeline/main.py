@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .captions import build_cues, write_srt
 from .config import load_config
+from .fact_checker import verify_script
 from .issue_selector import select_issues
 from .narration import synthesize
 from .script_generator import generate_script
@@ -70,6 +71,17 @@ def run_pipeline(channel: str | None = None) -> list[str]:
             stance_prompt=sg_cfg.get("stance_prompt"),
         )
 
+        fact_check_result = None
+        if sg_cfg.get("fact_check_enabled"):
+            fact_check_result = verify_script(script, enriched, model=sg_cfg["model"])
+            if not fact_check_result.passed:
+                print(
+                    f"[main] ⚠ 팩트체크 경고: {fact_check_result.notes} "
+                    f"(지적된 문장: {fact_check_result.flagged_claims})"
+                )
+            else:
+                print("[main] 팩트체크 통과")
+
         slug = _slugify(issue.keyword)
         work_dir = output_dir / run_date / slug
         work_dir.mkdir(parents=True, exist_ok=True)
@@ -86,6 +98,7 @@ def run_pipeline(channel: str | None = None) -> list[str]:
                     "cta": script.cta,
                     "sources": script.sources,
                     "disclaimer": script.disclaimer,
+                    "fact_check": fact_check_result.to_dict() if fact_check_result else None,
                     "raw_issue_context": enriched,
                 },
                 f,

@@ -43,6 +43,11 @@ script_generation:
   tone: "객관적 사실 전달 + 간결한 해설, 특정 정당·정치인에 대한 편향적 단정 표현 지양"
   require_source_citation: true
 
+  # 대본 생성 후 별도 Claude 호출로 "근거 없는 주장/인신공격 표현이 있는가"를
+  # 재검증합니다. API 호출이 1번 더 늘어나므로 기본값은 꺼져 있습니다.
+  # 사람의 최종 검수를 대체하지 않습니다 — 검수 시 참고할 경고 표시일 뿐입니다.
+  fact_check_enabled: false
+
 # --- TTS(음성 합성) ---
 tts:
   engine: "edge-tts"          # 무료, 별도 API 키 불필요
