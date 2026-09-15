@@ -28,12 +28,21 @@ issue_selection:
   watch_keyword_boost: 3      # watch_keywords에 매칭되면 언급 횟수에 곱해줄 가중치
 
 # --- 소스 사용 방식 ---
-# reupload_raw_clips: true 로 바꾸면 "원본 클립 그대로" 모드지만
-# 저작권 침해 리스크가 매우 높으므로 기본값은 false(내레이션+자막 자체 제작) 권장.
-# README.md의 "저작권/법적 리스크" 섹션을 반드시 읽어보세요.
 content_mode:
-  reupload_raw_clips: false
   narration_and_captions: true
+
+  # true로 바꾸면 finalize.py가 script.json의 source_clip_path(사용자가 직접
+  # 준비한 로컬 클립 파일)를 영상 앞부분에 실제로 이어붙입니다. 저작권 침해
+  # 리스크가 매우 높은 기능이므로 기본값은 꺼져 있고, 클립 확보/사용 범위는
+  # 전적으로 사용자 책임입니다. 이 파이프라인은 클립을 자동으로 수집·다운로드
+  # 하지 않습니다. README.md의 "저작권/법적 리스크" 섹션을 반드시 읽어보세요.
+  reupload_raw_clips: false
+
+  # true로 바꾸면 main.py가 마무리(cta) 없이 hook+body만으로 초안을 만들고,
+  # script.json에 closing_remark(직접 쓰는 "한마디")/source_clip_path 빈
+  # 필드를 추가합니다. 채워넣은 뒤 finalize.py로 최종본을 만듭니다.
+  # (3번 "멀티 채널 운영하기" 섹션 및 "한마디" 워크플로 참고)
+  manual_closing_remark: false
 
 # --- 대본 생성 (Claude API 사용) ---
 script_generation:

@@ -42,13 +42,15 @@ def run_pipeline(channel: str | None = None) -> list[str]:
     output_dir = Path(cfg["_output_dir"])
     run_date = datetime.now().strftime("%Y%m%d")
 
+    manual_closing_remark = cfg["content_mode"].get("manual_closing_remark", False)
+
     if cfg["content_mode"].get("reupload_raw_clips"):
         print(
             "[main] 경고: content_mode.reupload_raw_clips=true 입니다. "
-            "원본 뉴스/방송 클립을 그대로 재업로드하는 것은 저작권 침해 리스크가 "
-            "매우 높습니다. README.md의 '저작권/법적 리스크' 섹션을 반드시 확인하세요. "
-            "이 파이프라인의 video_assembler 는 현재 원본 클립 삽입 기능을 구현하지 "
-            "않으며, 항상 자체 배경+자막+나레이션으로만 영상을 만듭니다."
+            "finalize.py가 script.json의 source_clip_path에 지정된 클립을 실제로 "
+            "영상에 이어붙입니다. 그 클립을 저작권상 안전하게 확보했는지는 전적으로 "
+            "사용자 책임입니다 — README.md의 '저작권/법적 리스크' 섹션을 반드시 "
+            "확인하세요."
         )
 
     issues = select_issues(cfg)
@@ -87,32 +89,36 @@ def run_pipeline(channel: str | None = None) -> list[str]:
         work_dir.mkdir(parents=True, exist_ok=True)
 
         script_path = work_dir / "script.json"
+        script_data = {
+            "channel": cfg["channel"],
+            "issue": issue.keyword,
+            "title": script.title,
+            "hook": script.hook,
+            "body": script.body,
+            "cta": script.cta,
+            "sources": script.sources,
+            "disclaimer": script.disclaimer,
+            "fact_check": fact_check_result.to_dict() if fact_check_result else None,
+            "raw_issue_context": enriched,
+        }
+        if manual_closing_remark:
+            # cta는 참고용 AI 초안으로만 남겨두고, 실제 마무리("한마디")는
+            # 사람이 아래 두 필드를 채운 뒤 finalize.py로 반영한다.
+            script_data["closing_remark"] = ""
+            script_data["source_clip_path"] = ""
+            script_data["clip_source_label"] = ""
+
         with open(script_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "channel": cfg["channel"],
-                    "issue": issue.keyword,
-                    "title": script.title,
-                    "hook": script.hook,
-                    "body": script.body,
-                    "cta": script.cta,
-                    "sources": script.sources,
-                    "disclaimer": script.disclaimer,
-                    "fact_check": fact_check_result.to_dict() if fact_check_result else None,
-                    "raw_issue_context": enriched,
-                },
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
+            json.dump(script_data, f, ensure_ascii=False, indent=2)
         print(f"[main] 대본 저장: {script_path}")
 
         tts_cfg = cfg["tts"]
         audio_path = work_dir / "narration.mp3"
+        narration_text = script.hook_and_body if manual_closing_remark else script.full_narration
         timings = synthesize(
-            script.full_narration, tts_cfg["voice"], tts_cfg["rate"], str(audio_path)
+            narration_text, tts_cfg["voice"], tts_cfg["rate"], str(audio_path)
         )
-        print(f"[main] 나레이션 생성: {audio_path}")
+        print(f"[main] 나레이션 생성({'초안, cta 제외' if manual_closing_remark else '완성'}): {audio_path}")
 
         video_cfg = cfg["video"]
         cues = build_cues(timings, video_cfg["caption_max_chars_per_line"])
@@ -141,6 +147,13 @@ def run_pipeline(channel: str | None = None) -> list[str]:
         print(f"[main] 썸네일 생성 완료: {thumbnail_path}")
 
         generated_paths.append(str(video_path))
+
+        if manual_closing_remark:
+            print(
+                f"[main] → '{script_path}' 의 closing_remark(한마디)를 채운 뒤 "
+                f"다음 명령으로 최종본을 만드세요:\n"
+                f"    python -m src.pipeline.finalize --script {script_path}"
+            )
 
     print(f"\n[main] 총 {len(generated_paths)}개 영상 생성 완료. "
           f"업로드 전 반드시 직접 검수하세요 (사실관계/편향성/저작권).")

@@ -66,6 +66,12 @@ class ShortsScript:
     def full_narration(self) -> str:
         return " ".join([self.hook, self.body, self.cta]).strip()
 
+    @property
+    def hook_and_body(self) -> str:
+        """cta(AI가 쓴 마무리 멘트) 없이 hook+body만. '한마디' 워크플로처럼
+        마무리를 사람이 직접 쓰는 채널에서 초안 나레이션으로 사용한다."""
+        return " ".join([self.hook, self.body]).strip()
+
     @classmethod
     def from_json(cls, data: dict) -> "ShortsScript":
         return cls(

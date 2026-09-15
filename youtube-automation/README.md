@@ -42,11 +42,14 @@
   **짧은 발췌**만 대본 작성 참고용으로 사용합니다.
 - 국회 의안정보(Open API)는 공공데이터이므로 비교적 자유롭게 활용합니다.
 
-`reupload_raw_clips: true`로 바꿔도 `video_assembler.py`는 원본 클립을
-삽입하는 기능 자체가 구현되어 있지 않습니다. 정말 원본 클립을 쓰고
-싶다면, 방송사/국회사무처에 **별도 이용허락을 받는 것**을 권장하며,
-그 경우에도 반드시 변호사 등 전문가 검토를 받으세요. (이 도구는 법률
-자문이 아닙니다.)
+`content_mode.reupload_raw_clips: true`로 켜고 `source_clip_path`를
+채우면(4번 "한마디 워크플로" 참고) `finalize.py`가 실제로 그 클립 파일을
+영상 앞부분에 이어붙입니다 — 이 파이프라인은 클립을 **자동으로 수집·
+다운로드하지 않으며**, 사용자가 직접 준비해서 로컬 파일 경로로 넘겨줄
+때만 동작합니다. 정말 방송사 뉴스 클립을 쓰고 싶다면, 방송사에 **별도
+이용허락을 받는 것**을 권장하며, 그렇지 않다면 아주 짧게(1~2초, "인용"
+수준)만 쓰고 본인의 해설이 압도적으로 길게 이어지도록 하세요. 어느 쪽이든
+반드시 변호사 등 전문가 검토를 받으세요. (이 도구는 법률 자문이 아닙니다.)
 
 ---
 
@@ -94,7 +97,9 @@ youtube-automation/
 │   ├── imaging.py          # 그라디언트 배경 + 한글 폰트 경로 해석 (video/thumbnail 공용)
 │   ├── video_assembler.py  # 자막 + 음성 합성 → mp4
 │   ├── thumbnail.py        # 제목 텍스트로 1280x720 썸네일 JPG 생성
-│   └── main.py             # 전체 파이프라인 오케스트레이션 (진입점)
+│   ├── fact_checker.py     # (선택) 대본 2차 팩트체크
+│   ├── main.py             # 전체 파이프라인 오케스트레이션 (진입점)
+│   └── finalize.py         # (선택) "한마디"/외부 클립 반영해 최종본 생성
 ├── scripts/run_pipeline.sh # 실행 스크립트 (cron/systemd 겸용)
 ├── ansible/                # 서버 배포용 플레이북/role
 └── output/                 # 결과물 (script.json, captions.srt, short.mp4, thumbnail.jpg)
@@ -107,7 +112,7 @@ youtube-automation/
   주고 싶다면 `config.yaml`의 `rss_feeds`나 `issue_selection`을
   조정하세요. 사용자님이 이미 이슈를 항상 트래킹하신다니, 향후
   "관심 키워드 화이트리스트" 기능을 추가하면 직접 쓰시는 감각을
-  자동 선정에 결합할 수 있습니다(3번 확장 아이디어 참고).
+  자동 선정에 결합할 수 있습니다(7번 확장 아이디어 참고).
 - **소스와 최종 렌더링을 분리**: `content_mode` 설정 하나로 나중에
   전략을 바꿀 수 있게 설계했습니다.
 - **업로드는 의도적으로 제외**: 정치 콘텐츠는 사실 오류·편향 논란이
@@ -170,11 +175,67 @@ python -m src.pipeline.main               # channel 생략 시 config.yaml만 �
   문제가 되는 건 가짜 계정으로 서로 품앗이하거나 조회수·댓글을 조작하는
   "기만 행위(coordinated inauthentic behavior)"이니, 그런 행위만 안 하면 됩니다.
 - 의도적으로 한쪽 관점만 강조하는 콘텐츠이므로, **업로드 전 사람 검수가
-  더욱 중요**합니다 (6번 체크리스트 참고).
+  더욱 중요**합니다 (8번 체크리스트 참고).
 
 ---
 
-## 4. 로컬에서 실행하기
+## 4. "한마디" 워크플로 — 초안은 자동, 마지막 한마디는 직접
+
+"AI가 다 쓰는 게 아니라 마지막 한마디는 내가 직접 쓴다"는 컨셉(예:
+"한마디좌")을 위한 2단계 워크플로입니다. 녹음을 직접 하는 게 아니라
+**텍스트로 입력**하면 채널의 TTS 목소리가 그대로 읽어줘서, 본문과
+자연스럽게 이어지는 하나의 목소리로 나옵니다.
+
+`config.yaml`(또는 특정 채널 오버레이)에서 켭니다:
+```yaml
+content_mode:
+  manual_closing_remark: true
+```
+
+### 1단계 — 초안 생성 (자동)
+
+```bash
+python -m src.pipeline.main --channel right
+```
+평소처럼 이슈 선정~대본~나레이션~영상을 자동 생성하되, 이번엔 **cta(AI가
+쓴 마무리 멘트) 없이 hook+body까지만** 나레이션에 넣고, `script.json`에
+사람이 채울 빈 필드 3개를 추가합니다:
+
+```jsonc
+{
+  // ...title, hook, body, cta(참고용 AI 초안), sources, disclaimer...
+  "closing_remark": "",      // 여기에 본인이 쓴 '한마디'를 입력
+  "source_clip_path": "",    // (선택) 앞에 붙일 외부 클립의 로컬 파일 경로
+  "clip_source_label": ""    // (선택) 클립 위에 표시할 출처 텍스트
+}
+```
+
+### 2단계 — 한마디 채우고 최종본 생성 (수동 트리거)
+
+`script.json`을 직접 열어 `closing_remark`에 본인 코멘트를 입력한 뒤:
+
+```bash
+python -m src.pipeline.finalize --script output/right/20260101/이슈-슬러그/script.json
+```
+
+이 명령이 hook+body+closing_remark를 이어서 나레이션을 다시 합성하고,
+자막·영상을 `narration_final.mp3` / `captions_final.srt` /
+`short_final.mp4`로 새로 만듭니다. `closing_remark`가 비어 있으면
+실행 자체가 거부됩니다(실수로 AI cta만 들어간 채 업로드되는 것 방지).
+
+### 외부 클립을 앞부분에 넣고 싶다면
+
+`source_clip_path`에 로컬 클립 파일 경로를 채우면 `finalize.py`가 세로
+캔버스에 맞춰 중앙 크롭한 뒤 영상 맨 앞에 이어붙이고(그 클립의 원래
+음성도 그대로 재생됨), `clip_source_label`을 채우면 클립 위에 작게
+출처가 표시됩니다. 단, `content_mode.reupload_raw_clips: true`로 켜야만
+동작합니다 — **이 저장소는 클립을 자동으로 수집하지 않으므로, 클립
+파일 자체는 사용자가 직접 준비해야 하고, 그 확보 경로가 저작권상
+안전한지도 사용자 책임입니다.** (0번 "저작권/법적 리스크" 섹션 필독)
+
+---
+
+## 5. 로컬에서 실행하기
 
 ```bash
 cd youtube-automation
@@ -221,7 +282,7 @@ TTS 음성 합성, Claude 대본 생성은 외부 API 호출이 필요해 이 �
 
 ---
 
-## 5. 서버에 자동 배포하기 (Ansible)
+## 6. 서버에 자동 배포하기 (Ansible)
 
 이 저장소가 원래 Ansible 강의 자료이니, 배운 내용을 그대로 활용해 매일
 정해진 시각에 채널별로 자동 실행되도록 배포할 수 있습니다.
@@ -262,7 +323,7 @@ ls /opt/youtube-automation/output/right/
 
 ---
 
-## 6. 다음 단계로 확장하고 싶다면
+## 7. 다음 단계로 확장하고 싶다면
 
 - **관심 키워드 가중치** (구현됨): `config.yaml`의 `issue_selection.watch_keywords`에
   평소 트래킹하는 키워드(상임위명, 법안명, 정치인 이름 등)를 적어두면,
@@ -287,7 +348,7 @@ ls /opt/youtube-automation/output/right/
 
 ---
 
-## 7. 업로드 전 체크리스트 (사람이 직접 확인)
+## 8. 업로드 전 체크리스트 (사람이 직접 확인)
 
 - [ ] 대본의 사실관계가 실제 기사 내용과 일치하는가 (지어낸 사실/수치는 없는가)
       — `fact_check_enabled: true`면 `script.json`의 `fact_check` 필드 먼저 확인
@@ -297,3 +358,7 @@ ls /opt/youtube-automation/output/right/
 - [ ] 저작권 문제될 이미지/영상/음악이 섞이지 않았는가
 - [ ] 제목/썸네일이 낚시성·허위 정보가 아닌가
 - [ ] (멀티 채널 운영 시) 다른 채널을 언급/교차홍보하지 않았는가
+- [ ] (`manual_closing_remark` 사용 시) `short_final.mp4`를 업로드하는 게
+      맞는가 — cta만 들어간 초안 `short.mp4`를 실수로 올리지 않았는가
+- [ ] (외부 클립을 삽입했다면) 그 클립의 출처를 확보한 경위가 저작권상
+      실제로 안전한지 다시 한번 확인했는가
